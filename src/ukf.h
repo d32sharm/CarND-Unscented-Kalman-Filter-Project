@@ -67,7 +67,11 @@ public:
   ///* Sigma point spreading parameter
   double lambda_;
 
+  MatrixXd Q_;
 
+  MatrixXd R_lidar_;
+
+  MatrixXd R_radar_;
   /**
    * Constructor
    */
@@ -84,6 +88,9 @@ public:
    */
   void ProcessMeasurement(MeasurementPackage meas_package);
 
+  void ComputeSigmaPoints();
+  
+  VectorXd ProcessModel(VectorXd X, double dt);
   /**
    * Prediction Predicts sigma points, the state, and the state covariance
    * matrix
