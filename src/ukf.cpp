@@ -198,12 +198,14 @@ void UKF::Prediction(double delta_t) {
     Xsig_pred_.row(i) = ProcessModel(Xsig_pred_.row(i), delta_t);
   }
 
+  x_.fill(0.0);
   // compute the mean
   for (int i = 0; i < n_aug_; ++i) {
     VectorXd X_sigma = Xsig_pred_.row(i);
     x_ = x_ + weights_(i) * X_sigma;
   }
 
+  P_.fill(0.0);
   // compute the covariance
   for (int i = 0; i < n_aug_; ++i) {
     VectorXd X_sigma = Xsig_pred_.row(i);
@@ -211,8 +213,9 @@ void UKF::Prediction(double delta_t) {
     while (x_diff(3) > M_PI) x_diff(3) -= 2.*M_PI;
     while (x_diff(3) < -M_PI) x_diff(3) += 2.*M_PI;
 
-    P_ = P_ + weights_(i) * (x_diff) * (x_diff).transpose() + Q_;
+    P_ = P_ + weights_(i) * (x_diff) * (x_diff).transpose();
   }
+  P_ += Q_;
 }
 
 void UKF::ComputeSigmaPoints() {
@@ -273,15 +276,12 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
              0, 0;
   for (int i = 0; i < n_aug_; ++i) {
     VectorXd Z_sigma = Sigma_z.row(i);
-    S_lidar = S_lidar + weights_(i) * (Z_sigma - Z) * (Z_sigma - Z).transpose() + R_lidar_;
+    S_lidar = S_lidar + weights_(i) * (Z_sigma - Z) * (Z_sigma - Z).transpose();
   }
+  S_lidar += R_lidar_;
 
   MatrixXd S = MatrixXd(5,2);
-  S << 0, 0,
-       0, 0,
-       0, 0,
-       0, 0,
-       0, 0;
+  S.fill(0.0);
   
   for (int i = 0; i < n_aug_; ++i) {
     VectorXd X_sigma = Xsig_pred_.row(i);
@@ -292,11 +292,10 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
     while (x_diff(3) < -M_PI) x_diff(3) += 2.*M_PI;
 
     S = S + weights_(i) * (x_diff) * (Z_sigma - Z).transpose();
-
-    MatrixXd Kalman_gain = S * S_lidar.inverse();
-    x_ = x_ + Kalman_gain * (meas_package.raw_measurements_ - Z);
-    P_ = P_ - Kalman_gain * S_lidar * Kalman_gain.transpose();
   }
+  MatrixXd Kalman_gain = S * S_lidar.inverse();
+  x_ = x_ + Kalman_gain * (meas_package.raw_measurements_ - Z);
+  P_ = P_ - Kalman_gain * S_lidar * Kalman_gain.transpose();
 }
 
 /**
@@ -345,9 +344,9 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     VectorXd z_diff = Z_sigma - Z;
     while (z_diff(1) > M_PI) z_diff(1) -= 2.*M_PI;
     while (z_diff(1) < -M_PI) z_diff(1) += 2.*M_PI;
-    S_radar = S_radar + weights_(i) * (z_diff) * (z_diff).transpose() + R_radar_;
+    S_radar = S_radar + weights_(i) * (z_diff) * (z_diff).transpose();
   }
-
+  S_radar += R_radar_;
   MatrixXd S = MatrixXd(5,3);
   S << 0, 0, 0,   
        0, 0, 0,
@@ -367,14 +366,12 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     while (x_diff(3) > M_PI) x_diff(3) -= 2.*M_PI;
     while (x_diff(3) < -M_PI) x_diff(3) += 2.*M_PI;
     S = S + weights_(i) * (x_diff) * (z_diff).transpose();
-
-    MatrixXd Kalman_gain = S * S_radar.inverse();
-
-    z_diff = meas_package.raw_measurements_ - Z; 
-    while (z_diff(1) > M_PI) z_diff(1) -= 2.*M_PI;
-    while (z_diff(1) < -M_PI) z_diff(1) += 2.*M_PI;   
-    x_ = x_ + Kalman_gain * (z_diff);
-    P_ = P_ - Kalman_gain * S_radar * Kalman_gain.transpose();
   }
 
+  MatrixXd Kalman_gain = S * S_radar.inverse();
+  VectorXd z_diff = meas_package.raw_measurements_ - Z; 
+  while (z_diff(1) > M_PI) z_diff(1) -= 2.*M_PI;
+  while (z_diff(1) < -M_PI) z_diff(1) += 2.*M_PI;   
+  x_ = x_ + Kalman_gain * (z_diff);
+  P_ = P_ - Kalman_gain * S_radar * Kalman_gain.transpose();
 }
